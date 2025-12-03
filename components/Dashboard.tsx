@@ -26,7 +26,7 @@ interface DashboardProps {
 
 // Helper: Clean raw review text by removing common Amazon return reason prefixes
 const cleanReviewText = (text: string) => {
-  return text.replace(/^(不需要的物品|订购了错误的商品|不想要的物品|尺寸过大|质量问题|性能或质量不足|Item doesn't fit|Wrong item sent|Defective item|Quality not adequate|Not compatible|Better price available)[：: -]\s*/i, '').trim();
+  return text.replace(/^(UNWANTED_ITEM|ORDERED_WRONG_ITEM)[：: -]\s*/i, '').trim();
 };
 
 export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
@@ -583,7 +583,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
                            </h4>
                            <div className="text-slate-700 text-sm leading-relaxed">
                             {(() => {
-                              if (!sortedReasons.length) return "退货原因较为分散，未发现单一主导因素。";
+                              if (!sortedReasons.length) return "";
                               
                               if (topReason.tag_code === 'NO_MATCH' || topReason.tag_name_cn === '无合适标签') {
                                   if (secondReason) {
@@ -621,6 +621,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
 
                         {/* Detailed Evidence Block */}
                         {(() => {
+                           // ADDED SAFETY CHECK HERE
+                           if (!topReason) return null;
+
                            const targetReason = (topReason.tag_code === 'NO_MATCH' && secondReason) ? secondReason : topReason;
                            if (targetReason && targetReason.detailed_explanation) {
                              return (
@@ -644,7 +647,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
                         {!sortedReasons.length && (
                           <div className="flex items-center text-slate-400 text-sm bg-slate-50 p-3 rounded">
                              <HelpCircle className="w-4 h-4 mr-2" />
-                             暂无足够的文本数据生成深度解读。
+                             暂无足够的留言生成深度解读。
                           </div>
                         )}
                     </div>
