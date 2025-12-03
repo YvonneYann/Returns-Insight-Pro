@@ -29,82 +29,6 @@ const cleanReviewText = (text: string) => {
   return text.replace(/^(不需要的物品|订购了错误的商品|不想要的物品|尺寸过大|质量问题|性能或质量不足|Item doesn't fit|Wrong item sent|Defective item|Quality not adequate|Not compatible|Better price available)[：: -]\s*/i, '').trim();
 };
 
-// Helper: Semantic Summarizer based on keyword clustering
-const generateSemanticSummary = (rawTexts: string[]): string => {
-  const texts = rawTexts.map(cleanReviewText).filter(t => t && t.length > 1); // Filter empty or single chars
-  
-  if (texts.length === 0) return '';
-  
-  // Keyword Counting
-  let sinkCount = 0;
-  let sizeCount = 0; 
-  let largeCount = 0;
-  let smallCount = 0;
-  let fitCount = 0; 
-  let qualityCount = 0;
-  
-  texts.forEach(t => {
-     const low = t.toLowerCase();
-     if (low.includes('水槽') || low.includes('sink')) sinkCount++;
-     
-     if (low.includes('大') || low.includes('long') || low.includes('large') || low.includes('big')) { 
-       sizeCount++; 
-       largeCount++; 
-     }
-     
-     if (low.includes('小') || low.includes('short') || low.includes('small') || low.includes('tight')) { 
-       sizeCount++; 
-       smallCount++; 
-     }
-     
-     if (low.includes('不适合') || low.includes('不合适') || low.includes('fit') || low.includes('compatible') || low.includes('放不下') || low.includes('无法')) {
-       fitCount++;
-     }
-
-     if (low.includes('质量') || low.includes('quality') || low.includes('坏') || low.includes('broken') || low.includes('tear') || low.includes('薄') || low.includes('破')) {
-       qualityCount++;
-     }
-  });
-  
-  const sentences: string[] = [];
-  
-  // Logic Tree for Summary Generation
-  if (sinkCount > 0) {
-      sentences.push('主要集中在尺寸与兼容性问题。');
-      let detail = '多位用户反馈产品无法适配其水槽';
-      if (largeCount > 0 && smallCount > 0) detail += '，普遍存在尺寸偏大或偏小的情况';
-      else if (largeCount > 0) detail += '，普遍反映实物尺寸过大';
-      else if (smallCount > 0) detail += '，普遍反映实物尺寸偏小';
-      sentences.push(detail + '。');
-  } 
-  else if (sizeCount > 0 && fitCount > 0) {
-      sentences.push('主要集中在尺寸不符导致的不适配。');
-      if (largeCount > smallCount) sentences.push('多数用户反馈实物尺寸偏大，无法正确安装。');
-      else sentences.push('多数用户反馈实物尺寸偏小，无法满足使用需求。');
-  }
-  else if (qualityCount > 0) {
-      sentences.push('主要集中在产品质量问题。');
-      sentences.push('部分用户反馈做工粗糙或材质不达标。');
-  }
-  else if (largeCount > 0) {
-      sentences.push('主要集中在尺寸过大问题。');
-      sentences.push('多位用户反映实物比预期大，空间无法容纳。');
-  }
-  else if (smallCount > 0) {
-      sentences.push('主要集中在尺寸过小问题。');
-      sentences.push('多位用户反映实物比预期小，不符合使用习惯。');
-  }
-  else {
-      // Fallback: Pick top unique reasons
-      const unique = Array.from(new Set(texts));
-      if (unique.length > 0) {
-        return `用户反馈主要提及：${unique.slice(0, 2).join('；')}。`;
-      }
-  }
-  
-  return sentences.join('');
-};
-
 export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
   const reportRef = useRef<HTMLDivElement>(null);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -133,14 +57,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
         if (explicitSummaries.length > 0) {
              detailedText = Array.from(new Set(explicitSummaries)).join('；');
         } else {
-             // 2. Fallback: Aggregate and summarize evidence strictly
+             // 2. Fallback: Aggregate evidence, sort by length, take top 5
              const rawEvidence = matches
                 .map(e => e.evidence) // Strictly use evidence field as requested
                 .filter((t): t is string => typeof t === 'string' && t.trim().length > 0);
              
              if (rawEvidence.length > 0) {
-                 // Use semantic summarizer (which cleans prefixes) instead of simple join
-                 detailedText = generateSemanticSummary(rawEvidence);
+                 // Clean prefixes to ensure we are measuring true content length
+                 const cleaned = rawEvidence.map(cleanReviewText).filter(t => t.length > 1);
+                 // Deduplicate
+                 const unique = Array.from(new Set(cleaned));
+                 // Sort by length descending (longest first)
+                 unique.sort((a, b) => b.length - a.length);
+                 // Take top 5
+                 const top5 = unique.slice(0, 5);
+                 
+                 if (top5.length > 0) {
+                    detailedText = top5.map((t, i) => `${i + 1}. ${t}`).join('\n');
+                 }
              }
         }
         
@@ -284,7 +218,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
       {/* Main Report Container */}
       <div className="max-w-5xl mx-auto p-8 print:p-0" ref={reportRef}>
         
-        {/* Report Header - Redesigned Card Style */}
+        {/* Report Header */}
         <div className="bg-white rounded-2xl p-6 mb-8 border border-slate-200 shadow-sm relative overflow-hidden">
           {/* Top accent gradient */}
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-600"></div>
@@ -381,7 +315,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-12">
-                {/* Table Section: Adjusted to col-span-5 to give more space to insights */}
                 <div className="lg:col-span-5 p-4 border-b lg:border-b-0 lg:border-r border-slate-100">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
@@ -412,7 +345,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
                   </div>
                 </div>
 
-                {/* Insight Section: Adjusted to col-span-7 and increased font size */}
                 <div className="lg:col-span-7 bg-blue-50/20 p-5 flex flex-col justify-center">
                     {mainBattlefield.length > 0 ? (
                       <>
@@ -558,7 +490,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
 
           <div className="space-y-8">
             {reasons.map((reasonData) => {
-              // Sort core_reasons by event count to determine the true top reasons
               const sortedReasons = [...reasonData.core_reasons].sort((a, b) => b.event_count - a.event_count);
               const topReason = sortedReasons[0];
               const secondReason = sortedReasons.length > 1 ? sortedReasons[1] : null;
@@ -581,7 +512,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
 
                   <div className="flex flex-col md:flex-row">
                     
-                    {/* Left Column: Quantitative Data (Gray Background) */}
+                    {/* Left Column: Quantitative Data */}
                     <div className="md:w-[35%] bg-slate-50 p-6 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col gap-6">
                       
                       {/* Key Metrics Grid */}
@@ -626,7 +557,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
                                   {tag.tag_name_cn}
                                 </span>
                                 <span className="text-slate-500 whitespace-nowrap">
-                                  {formatPercent(tag.event_coverage)}
+                                  {formatPercent(tag.event_coverage)} ({tag.event_count}条)
                                 </span>
                               </div>
                               <div className="w-full bg-slate-200 rounded-full h-1.5">
@@ -641,7 +572,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
                       </div>
                     </div>
 
-                    {/* Right Column: Qualitative Insights (White Background) */}
+                    {/* Right Column: Qualitative Insights */}
                     <div className="md:w-[65%] p-6 bg-white flex flex-col justify-center">
                         
                         {/* Analysis Conclusion */}
@@ -700,7 +631,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
                                  </h4>
                                  <blockquote className="relative p-4 text-sm italic bg-amber-50/50 border-l-4 border-amber-400 text-slate-700 rounded-r-lg">
                                     <span className="absolute top-2 left-2 text-amber-200 text-4xl leading-none font-serif opacity-50">“</span>
-                                    <p className="relative z-10 pl-2">
+                                    <p className="relative z-10 pl-2 whitespace-pre-line">
                                       {targetReason.detailed_explanation}
                                     </p>
                                  </blockquote>
