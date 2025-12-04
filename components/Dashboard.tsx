@@ -13,7 +13,8 @@ import {
   MessageSquare,
   BarChart3,
   HelpCircle,
-  ZoomIn
+  ZoomIn,
+  Camera
 } from 'lucide-react';
 import { AppData } from '../types';
 import html2canvas from 'html2canvas';
@@ -25,13 +26,13 @@ interface DashboardProps {
 }
 
 // Helper: Clean raw review text by removing common Amazon return reason prefixes
-const cleanReviewText = (text: string) => {
+const cleanReviewText = (text: string): string => {
   return text.replace(/^(UNWANTED_ITEM|ORDERED_WRONG_ITEM)[：: -]\s*/i, '').trim();
 };
 
 export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
   const reportRef = useRef<HTMLDivElement>(null);
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [exportingStatus, setExportingStatus] = useState<'pdf' | 'image' | null>(null);
 
   const summary = data.summary!.parent_summary;
   const structure = data.structure!.asin_structure;
@@ -64,11 +65,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
              
              if (rawEvidence.length > 0) {
                  // Clean prefixes to ensure we are measuring true content length
-                 const cleaned = rawEvidence.map(cleanReviewText).filter(t => t.length > 1);
+                 const cleaned: string[] = rawEvidence.map(cleanReviewText).filter((t: string) => t.length > 1);
                  // Deduplicate
-                 const unique = Array.from(new Set(cleaned));
+                 const unique: string[] = Array.from(new Set(cleaned));
                  // Sort by length descending (longest first)
-                 unique.sort((a, b) => b.length - a.length);
+                 unique.sort((a: string, b: string) => b.length - a.length);
                  // Take top 5
                  const top5 = unique.slice(0, 5);
                  
@@ -139,7 +140,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
   // --- PDF Export Logic ---
   const handleDownload = async () => {
     if (!reportRef.current) return;
-    setIsDownloading(true);
+    setExportingStatus('pdf');
     try {
       await new Promise(resolve => setTimeout(resolve, 100));
       
@@ -178,7 +179,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
       console.error('Export failed', error);
       alert('Failed to generate PDF. Please try again.');
     }
-    setIsDownloading(false);
+    setExportingStatus(null);
+  };
+
+  // --- Screenshot Logic ---
+  const handleScreenshot = async () => {
+    if (!reportRef.current) return;
+    setExportingStatus('image');
+    try {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2, 
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#f8fafc'
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = imgData;
+      link.download = `${summary.fasin}_退货分析长图.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Screenshot failed', error);
+      alert('Failed to generate screenshot.');
+    }
+    setExportingStatus(null);
   };
 
   const confidenceMap: Record<string, string> = {
@@ -201,18 +230,32 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
           </button>
           <h1 className="text-xl font-bold text-slate-800">Returns Insight Pro</h1>
         </div>
-        <button
-          onClick={handleDownload}
-          disabled={isDownloading}
-          className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
-        >
-          {isDownloading ? (
-            <Activity className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
-            <Download className="w-4 h-4 mr-2" />
-          )}
-          {isDownloading ? '生成 PDF 中...' : '导出报告'}
-        </button>
+        <div className="flex items-center gap-3">
+            <button
+              onClick={handleScreenshot}
+              disabled={!!exportingStatus}
+              className="flex items-center px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors font-medium shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {exportingStatus === 'image' ? (
+                <Activity className="w-4 h-4 mr-2 animate-spin text-slate-500" />
+              ) : (
+                <Camera className="w-4 h-4 mr-2" />
+              )}
+              {exportingStatus === 'image' ? '生成长图中...' : '长截图'}
+            </button>
+            <button
+              onClick={handleDownload}
+              disabled={!!exportingStatus}
+              className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {exportingStatus === 'pdf' ? (
+                <Activity className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4 mr-2" />
+              )}
+              {exportingStatus === 'pdf' ? '生成 PDF 中...' : '导出报告'}
+            </button>
+        </div>
       </div>
 
       {/* Main Report Container */}
