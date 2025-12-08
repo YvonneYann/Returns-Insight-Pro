@@ -1,5 +1,5 @@
 {
-  "name": "returns-insight-pro",
+  "name": "returns-insight-pro-v0",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -13,7 +13,8 @@
     "react-dom": "^19.2.0",
     "lucide-react": "^0.555.0",
     "html2canvas": "^1.4.1",
-    "jspdf": "^3.0.4"
+    "jspdf": "^3.0.4",
+    "@google/genai": "^1.31.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

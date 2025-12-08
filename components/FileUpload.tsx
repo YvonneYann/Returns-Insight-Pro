@@ -1,5 +1,6 @@
+
 import React, { useState, useCallback } from 'react';
-import { UploadCloud, FileJson, Check, AlertCircle, Sparkles, BarChart3, LineChart, PieChart, FileText } from 'lucide-react';
+import { UploadCloud, FileJson, Check, AlertCircle, Sparkles, BarChart3, LineChart, PieChart, FileText, StickyNote } from 'lucide-react';
 import { AppData } from '../types';
 
 interface FileUploadProps {
@@ -12,12 +13,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
     summary: false,
     reasons: false,
     explanations: false,
+    listing: false,
   });
   const [tempData, setTempData] = useState<AppData>({
     structure: null,
     summary: null,
     reasons: null,
     explanations: null,
+    listing: null,
   });
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -48,6 +51,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
         } else if (json.reason_explanations || json.evidence) {
           newTempData.explanations = json;
           newStatus.explanations = true;
+        } else if (json.problem_asin_listing) {
+          newTempData.listing = json;
+          newStatus.listing = true;
         }
       } catch (e) {
         console.error("Error parsing file", file.name, e);
@@ -71,17 +77,23 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
        return;
     }
 
+    if (!tempData.listing) {
+      setError("请上传 Listing 详情 (listing) 文件。");
+      return;
+   }
+
     onDataLoaded(tempData);
   };
 
   const completedCount = Object.values(filesStatus).filter(Boolean).length;
-  const progressPercentage = (completedCount / 4) * 100;
+  const progressPercentage = (completedCount / 5) * 100;
 
   const fileRequirements = [
     { key: 'summary', label: '父体汇总', sub: 'summary.json', icon: BarChart3 },
     { key: 'structure', label: 'ASIN 结构', sub: 'structure.json', icon: FileJson },
     { key: 'reasons', label: '退货原因', sub: 'reasons.json', icon: AlertCircle },
     { key: 'explanations', label: '反馈依据', sub: 'evidence.json', icon: Sparkles },
+    { key: 'listing', label: 'Listing详情', sub: 'listing.json', icon: StickyNote },
   ];
 
   return (
@@ -158,7 +170,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
         <div className="w-full max-w-xl">
             <div className="mb-8">
                <h2 className="text-3xl font-bold text-slate-800 mb-2">导入分析数据</h2>
-               <p className="text-slate-500">请上传 4 份必需的 JSON 数据源以开始分析。</p>
+               <p className="text-slate-500">请上传 5 份必需的 JSON 数据源以开始分析。</p>
             </div>
 
             {/* Upload Zone */}
@@ -185,7 +197,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
                     <UploadCloud className="w-8 h-8" />
                  </div>
                  <p className="text-base font-semibold text-slate-700">点击上传 或 拖拽文件到此处</p>
-                 <p className="text-xs text-slate-400 mt-1">支持批量上传 (summary, structure, reasons, evidence)</p>
+                 <p className="text-xs text-slate-400 mt-1">支持批量上传 (summary, structure, reasons, evidence, listing)</p>
               </div>
             </div>
 
@@ -193,13 +205,13 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
             <div className="mb-8">
                <div className="flex justify-between items-end mb-2">
                   <span className="text-sm font-bold text-slate-700">数据完整度</span>
-                  <span className={`text-sm font-medium ${completedCount === 4 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                  <span className={`text-sm font-medium ${completedCount === 5 ? 'text-emerald-600' : 'text-slate-400'}`}>
                     {Math.round(progressPercentage)}%
                   </span>
                </div>
                <div className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden">
                   <div 
-                    className={`h-full transition-all duration-500 ease-out rounded-full ${completedCount === 4 ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                    className={`h-full transition-all duration-500 ease-out rounded-full ${completedCount === 5 ? 'bg-emerald-500' : 'bg-indigo-500'}`}
                     style={{ width: `${progressPercentage}%` }}
                   ></div>
                </div>
@@ -248,14 +260,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
             <button
               onClick={handleGenerateReport}
               className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg transition-all transform duration-200 active:scale-[0.98] flex items-center justify-center gap-2 ${
-                completedCount === 4
+                completedCount === 5
                   ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
                   : 'bg-slate-300 cursor-not-allowed text-slate-50'
               }`}
-              disabled={completedCount !== 4}
+              disabled={completedCount !== 5}
             >
-              <Sparkles className={`w-5 h-5 ${completedCount === 4 ? 'animate-pulse' : ''}`} />
-              {completedCount === 4 ? '生成分析报告' : '请先上传所有数据文件'}
+              <Sparkles className={`w-5 h-5 ${completedCount === 5 ? 'animate-pulse' : ''}`} />
+              {completedCount === 5 ? '生成分析报告' : '请先上传所有数据文件'}
             </button>
         </div>
       </div>

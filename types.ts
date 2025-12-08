@@ -63,6 +63,14 @@ export interface ReasonExplanation {
   review_en?: string; // Original English review
 }
 
+export interface ListingItem {
+  country: string;
+  fasin: string;
+  asin: string;
+  snapshot_date: string;
+  payload: string; // JSON string containing title, features, description etc.
+}
+
 export interface AppData {
   structure: { asin_structure: AsinNode[] } | null;
   summary: { parent_summary: ParentSummary } | null;
@@ -71,4 +79,5 @@ export interface AppData {
     reason_explanations?: ReasonExplanation[];
     evidence?: ReasonExplanation[]; 
   } | null;
+  listing: { problem_asin_listing: ListingItem[] } | null;
 }

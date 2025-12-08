@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useMemo } from 'react';
 import { 
   Download, 
@@ -14,11 +15,15 @@ import {
   BarChart3,
   HelpCircle,
   ZoomIn,
-  Camera
+  Camera,
+  Sparkles,
+  Bot,
+  Link as LinkIcon
 } from 'lucide-react';
 import { AppData } from '../types';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { GoogleGenAI } from "@google/genai";
 
 interface DashboardProps {
   data: AppData;
@@ -33,6 +38,10 @@ const cleanReviewText = (text: string): string => {
 export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
   const reportRef = useRef<HTMLDivElement>(null);
   const [exportingStatus, setExportingStatus] = useState<'pdf' | 'image' | null>(null);
+  
+  // AI Insight States
+  const [aiInsights, setAiInsights] = useState<Record<string, string>>({});
+  const [analyzingAsins, setAnalyzingAsins] = useState<Record<string, boolean>>({});
 
   const summary = data.summary!.parent_summary;
   const structure = data.structure!.asin_structure;
@@ -149,8 +158,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
         useCORS: true,
         logging: false,
         backgroundColor: '#f8fafc',
-        scrollX: 0, // Fix for vertical alignment issues
-        scrollY: 0, // Fix for vertical alignment issues
+        scrollX: 0, 
+        scrollY: 0, 
       });
       
       const imgData = canvas.toDataURL('image/png');
@@ -196,8 +205,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
         useCORS: true,
         logging: false,
         backgroundColor: '#f8fafc',
-        scrollX: 0, // Fix for vertical alignment issues
-        scrollY: 0, // Fix for vertical alignment issues
+        scrollX: 0,
+        scrollY: 0,
       });
       
       const imgData = canvas.toDataURL('image/png');
@@ -212,6 +221,200 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
       alert('Failed to generate screenshot.');
     }
     setExportingStatus(null);
+  };
+
+  // --- AI Analysis Logic ---
+  const handleGenerateInsight = async (asin: string, reasonName: string, percentage: string, evidence: string) => {
+    setAnalyzingAsins(prev => ({ ...prev, [asin]: true }));
+    
+    // Check for uploaded listing data
+    const listingItem = data.listing?.problem_asin_listing.find(l => l.asin === asin);
+    
+    if (!listingItem) {
+      // Fallback: If listing data is missing, just display a message.
+      // Do NOT use Google Search or hallucinate data.
+      setAiInsights(prev => ({ 
+        ...prev, 
+        [asin]: `
+          <div class="p-6 bg-slate-50 border border-slate-200 rounded-xl text-center">
+            <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-200 mb-4">
+              <span class="text-2xl">⚠️</span>
+            </div>
+            <h3 class="text-lg font-bold text-slate-700 mb-2">无法进行深度诊断</h3>
+            <p class="text-slate-500 mb-2">未在上传的 <code>listing.json</code> 中找到该 ASIN 的详情数据。</p>
+            <p class="text-sm text-slate-400">AI 无法对比“页面描述”与“用户反馈”的差异。请补充数据后重试。</p>
+          </div>
+        `
+      }));
+      setAnalyzingAsins(prev => ({ ...prev, [asin]: false }));
+      return;
+    }
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      
+      const htmlTemplate = `
+<div class="font-sans text-slate-900">
+  
+  <!-- 1. 产品画像 (Product Portrait) -->
+  <div class="mb-6 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="px-5 py-4 bg-indigo-50/50 border-b border-indigo-100 flex items-center gap-3">
+        <span class="text-xl">📦</span>
+        <h3 class="text-lg font-bold text-indigo-950">产品画像与基本情况</h3>
+    </div>
+    <div class="p-6">
+        <p class="text-base text-slate-700 leading-relaxed">
+          [在此处简述：这是一款什么产品？核心材质/功能/卖点是什么？]
+        </p>
+    </div>
+  </div>
+
+  <!-- 2. 诊断矩阵 (Diagnosis Matrix) -->
+  <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    
+    <!-- Matrix Header -->
+    <div class="grid grid-cols-1 md:grid-cols-2">
+        <div class="p-4 bg-rose-50 border-b md:border-b-0 md:border-r border-rose-100 text-center">
+           <div class="font-black text-rose-800 text-base uppercase tracking-wide flex items-center justify-center gap-2">
+              🚫 根本原因 <span class="opacity-60 text-xs font-normal">(Root Cause)</span>
+           </div>
+        </div>
+        <div class="p-4 bg-emerald-50 text-center">
+           <div class="font-black text-emerald-800 text-base uppercase tracking-wide flex items-center justify-center gap-2">
+              ✅ 行动建议 <span class="opacity-60 text-xs font-normal">(Action Plan)</span>
+           </div>
+        </div>
+    </div>
+
+    <!-- Row 1: Title Analysis -->
+    <div class="border-t border-slate-200">
+        <div class="bg-sky-100 px-5 py-3 border-b border-sky-200">
+            <span class="text-base font-extrabold text-sky-900 tracking-wide">1. 标题描述 (Title)</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2">
+            <!-- Left: Problem Analysis -->
+            <div class="p-6 text-base text-slate-700 leading-7 border-b md:border-b-0 md:border-r border-slate-200 bg-white hover:bg-slate-50/30 transition-colors">
+               <h4 class="font-bold text-slate-900 mb-3">问题分析：</h4>
+               <ul class="list-none space-y-3">
+                  <li>[1. 具体描述...]</li>
+                  <li>[2. 具体描述...]</li>
+                  <li>[3. 具体描述...]</li>
+               </ul>
+            </div>
+            <!-- Right: Suggestion & Logic -->
+            <div class="p-6 text-base text-slate-900 leading-7 bg-emerald-50/10 hover:bg-emerald-50/20 transition-colors flex flex-col gap-6">
+               
+               <div>
+                  <h4 class="font-bold text-emerald-800 text-sm mb-1">优化逻辑：</h4>
+                  <p class="text-sm text-emerald-700/90 leading-relaxed">
+                     [解释优化思路，例如：前置了xx参数，明确了xx定义，移除了xx冗余词...]
+                  </p>
+               </div>
+
+               <div>
+                 <h4 class="font-bold text-slate-900 mb-3">优化建议：</h4>
+                 <div class="p-4 bg-white border border-emerald-100 rounded-lg text-slate-800 shadow-sm font-medium">
+                    [在此处提供优化后的完整标题]
+                 </div>
+               </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 2: Bullet Points Analysis -->
+    <div class="border-t border-slate-200">
+        <div class="bg-violet-100 px-5 py-3 border-b border-violet-200">
+            <span class="text-base font-extrabold text-violet-900 tracking-wide">2. 五点描述 (Bullet Points)</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2">
+             <!-- Left: Problem Analysis -->
+            <div class="p-6 text-base text-slate-700 leading-7 border-b md:border-b-0 md:border-r border-slate-200 bg-white hover:bg-slate-50/30 transition-colors">
+               <h4 class="font-bold text-slate-900 mb-3">问题分析：</h4>
+               <ul class="list-none space-y-3">
+                  <li>[1. 具体描述...]</li>
+                  <li>[2. 具体描述...]</li>
+                  <li>[3. 具体描述...]</li>
+               </ul>
+            </div>
+             <!-- Right: Suggestion & Logic -->
+            <div class="p-6 text-base text-slate-900 leading-7 bg-emerald-50/10 hover:bg-emerald-50/20 transition-colors flex flex-col gap-6">
+               
+               <div>
+                  <h4 class="font-bold text-emerald-800 text-sm mb-1">优化逻辑：</h4>
+                  <p class="text-sm text-emerald-700/90 leading-relaxed">
+                     [解释优化思路，例如：将兼容性说明移至第一点，强调了材质耐用性...]
+                  </p>
+               </div>
+
+               <div>
+                 <h4 class="font-bold text-slate-900 mb-3">优化建议：</h4>
+                 <div class="p-4 bg-white border border-emerald-100 rounded-lg text-slate-800 shadow-sm space-y-2">
+                    <p>• (第X点) [优化后的五点内容]</p>
+                    <p>• (第Y点) [优化后的五点内容]</p>
+                 </div>
+               </div>
+            </div>
+        </div>
+    </div>
+
+  </div>
+
+</div>`;
+
+      // --- Use local data (Strategy 1) ---
+      let productInfo: any = {};
+      try {
+          productInfo = JSON.parse(listingItem.payload);
+      } catch (e) {
+          console.error("Failed to parse listing payload", e);
+      }
+      
+      const title = productInfo.title || "未知标题";
+      const features = Array.isArray(productInfo.features) ? productInfo.features.join('\n') : (productInfo.features || "无五点描述");
+      const description = productInfo.description || productInfo.product_description?.map((d:any) => d.value).join('\n') || "无产品描述";
+
+      const prompt = `你是一个亚马逊电商数据分析专家。请根据以下提供的【产品页面信息】（Listing）和【用户反馈】（Evidence），进行结构化归因诊断。
+
+**产品页面信息**:
+- ASIN: ${asin}
+- 标题: ${title}
+- 五点描述 (Bullet Points):
+${features}
+- 产品描述:
+${description}
+
+**用户反馈数据**:
+- 主要退货原因: ${reasonName} (占比 ${percentage})
+- 核心反馈声音:
+${evidence}
+
+**关键任务**:
+1.  **Context-Aware Analysis**: 请仔细对比“产品页面宣传”与“用户实际反馈”，找出不一致之处或误导性描述。
+2.  **Compliance & Constraints**: 你的【行动建议】必须严格受亚马逊平台规则约束。
+    - 标题优化：严禁堆砌关键词，严禁包含促销语（如 Free shipping, 100% Guarantee 等），确保可读性。
+    - 五点/描述优化：严禁夸大产品功能，必须基于产品真实属性；严禁使用亚马逊禁止的词汇。**重要：在“优化建议”中，仅列出需要修改的那些点（并请注明是第几点），如果某一点无需修改，请不要列出。**
+    - 确保所有建议都是合规且可执行的，旨在降低退货率的同时保障账号安全。
+3.  **Output**: 请完全按照下方的 HTML 模板格式输出分析结果。
+
+**输出格式要求 (HTML)**:
+请严格遵守以下 HTML 结构，不要包裹 Markdown 代码块符号。请务必使用中文输出分析内容。
+${htmlTemplate}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-pro-preview',
+        contents: prompt,
+      });
+
+      const text = response.text || "AI 暂时无法生成分析，请稍后再试。";
+      let cleanHtml = text.replace(/```html|```/g, '').trim();
+      
+      setAiInsights(prev => ({ ...prev, [asin]: cleanHtml }));
+    } catch (error) {
+      console.error("AI Generation Error", error);
+      setAiInsights(prev => ({ ...prev, [asin]: "<p class='text-rose-600'>分析生成失败，请检查网络或 API 配置。</p>" }));
+    } finally {
+      setAnalyzingAsins(prev => ({ ...prev, [asin]: false }));
+    }
   };
 
   const confidenceMap: Record<string, string> = {
@@ -540,6 +743,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
               const sortedReasons = [...reasonData.core_reasons].sort((a, b) => b.event_count - a.event_count);
               const topReason = sortedReasons[0];
               const secondReason = sortedReasons.length > 1 ? sortedReasons[1] : null;
+              const targetReason = (topReason?.tag_code === 'NO_MATCH' && secondReason) ? secondReason : topReason;
+              const hasEvidence = targetReason && targetReason.detailed_explanation;
 
               return (
                 <div key={reasonData.asin} className="bg-white rounded-xl border border-slate-200 shadow-sm break-inside-avoid overflow-hidden">
@@ -628,7 +833,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
                              <Target className="w-4 h-4 text-indigo-600" />
                              分析结论
                            </h4>
-                           <div className="text-slate-700 text-sm leading-relaxed">
+                           <div className="text-slate-700 text-sm leading-relaxed mb-4">
                             {(() => {
                               if (!sortedReasons.length) return "";
                               
@@ -664,17 +869,57 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
                               );
                             })()}
                            </div>
+
+                           {/* AI Deep Dive Button & Section */}
+                           {hasEvidence && targetReason && (
+                             <div className="mt-6">
+                               {aiInsights[reasonData.asin] ? (
+                                 <div className="w-full animate-in fade-in slide-in-from-top-4">
+                                   <div className="flex items-center gap-2 mb-4">
+                                      <div className="bg-indigo-600 p-1.5 rounded-lg shadow-sm">
+                                        <Bot className="w-4 h-4 text-white" />
+                                      </div>
+                                      <h5 className="font-bold text-slate-800 text-lg">AI 智能归因诊断</h5>
+                                   </div>
+                                   <div 
+                                      className="prose prose-slate max-w-none"
+                                      dangerouslySetInnerHTML={{ __html: aiInsights[reasonData.asin] }}
+                                   />
+                                 </div>
+                               ) : (
+                                  <button
+                                    onClick={() => handleGenerateInsight(
+                                      reasonData.asin,
+                                      targetReason.tag_name_cn,
+                                      formatPercent(targetReason.event_coverage),
+                                      targetReason.detailed_explanation!
+                                    )}
+                                    disabled={analyzingAsins[reasonData.asin]}
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-white border border-indigo-200 text-indigo-700 rounded-lg hover:bg-indigo-50 hover:border-indigo-300 transition-all text-sm font-semibold shadow-sm disabled:opacity-70 disabled:cursor-wait group w-full md:w-auto justify-center"
+                                  >
+                                    {analyzingAsins[reasonData.asin] ? (
+                                      <>
+                                        <Activity className="w-4 h-4 animate-spin" />
+                                        <span>AI 正在进行归因分析...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Sparkles className="w-4 h-4 group-hover:scale-110 transition-transform text-indigo-500" />
+                                        <span>AI 深度归因</span>
+                                      </>
+                                    )}
+                                  </button>
+                               )}
+                             </div>
+                           )}
                         </div>
 
                         {/* Detailed Evidence Block */}
                         {(() => {
-                           // ADDED SAFETY CHECK HERE
-                           if (!topReason) return null;
+                           if (!hasEvidence || !targetReason) return null;
 
-                           const targetReason = (topReason.tag_code === 'NO_MATCH' && secondReason) ? secondReason : topReason;
-                           if (targetReason && targetReason.detailed_explanation) {
-                             return (
-                               <div className="relative">
+                           return (
+                               <div className="relative mt-2">
                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
                                    <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
                                    用户原声透视
@@ -686,9 +931,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
                                     </p>
                                  </blockquote>
                                </div>
-                             );
-                           }
-                           return null;
+                           );
                         })()}
                         
                         {!sortedReasons.length && (
