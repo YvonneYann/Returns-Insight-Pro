@@ -148,7 +148,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
         scale: 2, 
         useCORS: true,
         logging: false,
-        backgroundColor: '#f8fafc'
+        backgroundColor: '#f8fafc',
+        scrollX: 0, // Fix for vertical alignment issues
+        scrollY: 0, // Fix for vertical alignment issues
       });
       
       const imgData = canvas.toDataURL('image/png');
@@ -193,7 +195,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset }) => {
         scale: 2, 
         useCORS: true,
         logging: false,
-        backgroundColor: '#f8fafc'
+        backgroundColor: '#f8fafc',
+        scrollX: 0, // Fix for vertical alignment issues
+        scrollY: 0, // Fix for vertical alignment issues
       });
       
       const imgData = canvas.toDataURL('image/png');
