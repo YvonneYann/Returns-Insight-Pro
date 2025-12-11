@@ -1,6 +1,8 @@
 
 // Type definitions matching the user's JSON structure
 
+export type ReportMode = 'status' | 'cycle';
+
 export interface AsinNode {
   country: string;
   fasin: string;
@@ -80,4 +82,9 @@ export interface AppData {
     evidence?: ReasonExplanation[]; 
   } | null;
   listing: { problem_asin_listing: ListingItem[] } | null;
+}
+
+export interface ComparisonData {
+  before: AppData;
+  after: AppData;
 }
