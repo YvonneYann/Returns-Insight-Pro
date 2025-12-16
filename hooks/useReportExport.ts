@@ -2,7 +2,7 @@ import { useState } from 'react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
-export const useReportExport = (reportRef: React.RefObject<HTMLDivElement | null>, mode: string) => {
+export const useReportExport = (reportRef: React.RefObject<HTMLDivElement | null>, filenameBase: string) => {
   const [exportingStatus, setExportingStatus] = useState<'pdf' | 'image' | null>(null);
 
   const prepareCanvas = async () => {
@@ -95,7 +95,7 @@ export const useReportExport = (reportRef: React.RefObject<HTMLDivElement | null
       });
       
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`退货分析报告_${mode}.pdf`);
+      pdf.save(`${filenameBase}.pdf`);
     } catch (error) {
       console.error('Export failed', error);
       alert('Failed to generate PDF. Please try again.');
@@ -115,7 +115,7 @@ export const useReportExport = (reportRef: React.RefObject<HTMLDivElement | null
       const imgData = canvas.toDataURL('image/png');
       const link = document.createElement('a');
       link.href = imgData;
-      link.download = `退货分析长图_${mode}.png`;
+      link.download = `${filenameBase}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

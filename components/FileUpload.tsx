@@ -1,6 +1,5 @@
-
 import React, { useState, useCallback } from 'react';
-import { UploadCloud, FileJson, Check, AlertCircle, Sparkles, BarChart3, LineChart, PieChart, FileText, StickyNote, RefreshCcw, ArrowLeft, ArrowRight, Clock, History } from 'lucide-react';
+import { UploadCloud, FileJson, Check, AlertCircle, Sparkles, BarChart3, LineChart, PieChart, FileText, StickyNote, RefreshCcw, ArrowLeft, ArrowRight, Clock, History, ShoppingCart } from 'lucide-react';
 import { AppData, ComparisonData, ReportMode } from '../types';
 
 interface FileUploadProps {
@@ -27,9 +26,9 @@ const initialFilesStatus = {
 };
 
 export const FileUpload: React.FC<FileUploadProps> = ({ mode, setMode, onDataLoaded }) => {
-  // Status Mode State
-  const [statusFilesStatus, setStatusFilesStatus] = useState(initialFilesStatus);
-  const [statusTempData, setStatusTempData] = useState<AppData>(initialAppData);
+  // Return Window Mode State (Used for both 'return' and 'purchase')
+  const [returnFilesStatus, setReturnFilesStatus] = useState(initialFilesStatus);
+  const [returnTempData, setReturnTempData] = useState<AppData>(initialAppData);
 
   // Cycle Mode State
   const [cycleFilesStatus, setCycleFilesStatus] = useState({
@@ -48,33 +47,62 @@ export const FileUpload: React.FC<FileUploadProps> = ({ mode, setMode, onDataLoa
   const normalizeData = (type: keyof AppData, json: any) => {
     // 1. Handle "summary" specifically: It expects an object, but input might be an array
     if (type === 'summary') {
-      let summaryObj = json.parent_summary || json.parent_summary_before || json.parent_summary_after || json;
+      let summaryObj = json.parent_summary || 
+                       json.parent_summary_before || 
+                       json.parent_summary_after || 
+                       json.parent_summary_return_window || 
+                       json.parent_summary_purchase_window ||
+                       json;
       if (Array.isArray(summaryObj)) {
         summaryObj = summaryObj[0];
       }
       return { parent_summary: summaryObj };
     }
 
-    // 2. Handle specific suffixed keys mapping for Cycle mode
+    // 2. Handle specific suffixed keys mapping for Cycle mode & Purchase mode
     if (type === 'structure') {
-      const content = json.asin_structure || json.asin_structure_before || json.asin_structure_after || json;
+      const content = json.asin_structure || 
+                      json.asin_structure_before || 
+                      json.asin_structure_after || 
+                      json.asin_structure_return_window || 
+                      json.asin_structure_purchase_window ||
+                      json;
       return { asin_structure: Array.isArray(content) ? content : [] };
     }
 
     if (type === 'reasons') {
-      const content = json.problem_asin_reasons || json.problem_asin_reasons_before || json.problem_asin_reasons_after || json;
+      const content = json.problem_asin_reasons || 
+                      json.problem_asin_reasons_before || 
+                      json.problem_asin_reasons_after || 
+                      json.problem_asin_reasons_return_window || 
+                      json.problem_asin_reasons_purchase_window ||
+                      json;
       return { problem_asin_reasons: Array.isArray(content) ? content : [] };
     }
 
     if (type === 'listing') {
-      const content = json.problem_asin_listing || json.problem_asin_listing_before || json.problem_asin_listing_after || json;
+      const content = json.problem_asin_listing || 
+                      json.problem_asin_listing_before || 
+                      json.problem_asin_listing_after || 
+                      json.problem_asin_listing_return_window || 
+                      json.problem_asin_listing_purchase_window ||
+                      json;
       return { problem_asin_listing: Array.isArray(content) ? content : [] };
     }
 
     if (type === 'explanations') {
       // Explanations can come in 'reason_explanations' or 'evidence' or suffixed versions
-      const exp = json.reason_explanations || json.reason_explanations_before || json.reason_explanations_after;
-      const ev = json.evidence || json.evidence_before || json.evidence_after;
+      const exp = json.reason_explanations || 
+                  json.reason_explanations_before || 
+                  json.reason_explanations_after || 
+                  json.reason_explanations_return_window ||
+                  json.reason_explanations_purchase_window;
+                  
+      const ev = json.evidence || 
+                 json.evidence_before || 
+                 json.evidence_after || 
+                 json.evidence_return_window ||
+                 json.evidence_purchase_window;
       
       const result: any = {};
       if (exp) result.reason_explanations = Array.isArray(exp) ? exp : [];
@@ -95,6 +123,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ mode, setMode, onDataLoa
     const keys = Object.keys(json);
 
     // 1. Key-based detection (Highly reliable)
+    // Includes check handles _return_window and _purchase_window suffixes implicitly
     if (keys.some(k => k.includes('asin_structure'))) return 'structure';
     if (keys.some(k => k.includes('parent_summary'))) return 'summary';
     if (keys.some(k => k.includes('problem_asin_reasons'))) return 'reasons';
@@ -116,10 +145,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({ mode, setMode, onDataLoa
     const files = event.target.files;
     if (!files) return;
 
-    // --- LOGIC FOR STATUS MODE ---
-    if (mode === 'status') {
-      const newTempData = { ...statusTempData };
-      const newStatus = { ...statusFilesStatus };
+    // --- LOGIC FOR RETURN OR PURCHASE MODE ---
+    if (mode === 'return' || mode === 'purchase') {
+      const newTempData = { ...returnTempData };
+      const newStatus = { ...returnFilesStatus };
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -138,8 +167,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({ mode, setMode, onDataLoa
           setError(`解析 "${file.name}" 失败，请确保文件内容为有效的 JSON 格式。`);
         }
       }
-      setStatusTempData(newTempData);
-      setStatusFilesStatus(newStatus);
+      setReturnTempData(newTempData);
+      setReturnFilesStatus(newStatus);
     } 
     // --- LOGIC FOR CYCLE MODE ---
     else if (mode === 'cycle') {
@@ -185,15 +214,15 @@ export const FileUpload: React.FC<FileUploadProps> = ({ mode, setMode, onDataLoa
     }
 
     setIsDragging(false);
-  }, [mode, statusTempData, statusFilesStatus, cycleTempData, cycleFilesStatus]);
+  }, [mode, returnTempData, returnFilesStatus, cycleTempData, cycleFilesStatus]);
 
   const handleGenerateReport = () => {
-    if (mode === 'status') {
-      if (!statusTempData.structure || !statusTempData.summary || !statusTempData.reasons || !statusTempData.explanations || !statusTempData.listing) {
+    if (mode === 'return' || mode === 'purchase') {
+      if (!returnTempData.structure || !returnTempData.summary || !returnTempData.reasons || !returnTempData.explanations || !returnTempData.listing) {
         setError("请上传全部 5 个必需的 JSON 文件以生成报告。");
         return;
       }
-      onDataLoaded(statusTempData);
+      onDataLoaded(returnTempData);
     } else if (mode === 'cycle') {
       const beforeComplete = Object.values(cycleFilesStatus.before).every(Boolean);
       const afterComplete = Object.values(cycleFilesStatus.after).every(Boolean);
@@ -210,8 +239,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({ mode, setMode, onDataLoa
   let completedCount = 0;
   let totalRequired = 0;
   
-  if (mode === 'status') {
-    completedCount = Object.values(statusFilesStatus).filter(Boolean).length;
+  if (mode === 'return' || mode === 'purchase') {
+    completedCount = Object.values(returnFilesStatus).filter(Boolean).length;
     totalRequired = 5;
   } else if (mode === 'cycle') {
     completedCount = Object.values(cycleFilesStatus.before).filter(Boolean).length + Object.values(cycleFilesStatus.after).filter(Boolean).length;
@@ -220,12 +249,18 @@ export const FileUpload: React.FC<FileUploadProps> = ({ mode, setMode, onDataLoa
   
   const progressPercentage = (completedCount / totalRequired) * 100;
 
+  // Determine subtext based on mode
+  const getSubtext = (base: string) => {
+      if (mode === 'purchase') return `${base} / *_purchase_window`;
+      return `${base} / *_return_window`;
+  };
+
   const fileRequirements = [
-    { key: 'summary', label: '父体汇总', sub: 'summary.json', icon: BarChart3 },
-    { key: 'structure', label: 'ASIN 结构', sub: 'structure.json', icon: FileJson },
-    { key: 'reasons', label: '退货原因', sub: 'reasons.json', icon: AlertCircle },
-    { key: 'explanations', label: '反馈依据', sub: 'evidence.json', icon: Sparkles },
-    { key: 'listing', label: 'Listing详情', sub: 'listing.json', icon: StickyNote },
+    { key: 'summary', label: '父体汇总', sub: getSubtext('summary'), icon: BarChart3 },
+    { key: 'structure', label: 'ASIN 结构', sub: getSubtext('structure'), icon: FileJson },
+    { key: 'reasons', label: '退货原因', sub: getSubtext('reasons'), icon: AlertCircle },
+    { key: 'explanations', label: '反馈依据', sub: getSubtext('evidence'), icon: Sparkles },
+    { key: 'listing', label: 'Listing详情', sub: getSubtext('listing'), icon: StickyNote },
   ];
 
   return (
@@ -322,8 +357,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({ mode, setMode, onDataLoa
                 </div>
                 
                 <div className="grid gap-5">
+                  {/* Return Window Mode (Replaces Status) */}
                   <button 
-                    onClick={() => setMode('status')}
+                    onClick={() => setMode('return')}
                     className="group relative flex items-start p-5 bg-white border border-slate-200 rounded-xl hover:border-indigo-500 hover:shadow-lg hover:shadow-indigo-500/10 transition-all duration-300 text-left"
                   >
                      <div className="w-12 h-12 rounded-lg bg-indigo-50 flex items-center justify-center mr-4 group-hover:bg-indigo-600 transition-colors duration-300 shrink-0 border border-indigo-100/50">
@@ -331,13 +367,31 @@ export const FileUpload: React.FC<FileUploadProps> = ({ mode, setMode, onDataLoa
                      </div>
                      <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
-                            <h3 className="text-lg font-bold text-slate-800 group-hover:text-indigo-700 transition-colors">退货现状分析</h3>
+                            <h3 className="text-lg font-bold text-slate-800 group-hover:text-indigo-700 transition-colors">退货窗口分析 (Return Window)</h3>
                             <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-indigo-500 transform group-hover:translate-x-1 transition-all" />
                         </div>
-                        <p className="text-slate-500 text-sm leading-relaxed">基于退货发生日统计。快速诊断当前退货率、原因分布与异常 ASIN，适合周/月度例行检查。</p>
+                        <p className="text-slate-500 text-sm leading-relaxed">基于退货发生日统计。快速诊断当前退货率、原因分布与异常 ASIN。</p>
                      </div>
                   </button>
 
+                  {/* Purchase Window Mode */}
+                  <button 
+                    onClick={() => setMode('purchase')}
+                    className="group relative flex items-start p-5 bg-white border border-slate-200 rounded-xl hover:border-sky-500 hover:shadow-lg hover:shadow-sky-500/10 transition-all duration-300 text-left"
+                  >
+                     <div className="w-12 h-12 rounded-lg bg-sky-50 flex items-center justify-center mr-4 group-hover:bg-sky-600 transition-colors duration-300 shrink-0 border border-sky-100/50">
+                        <ShoppingCart className="w-6 h-6 text-sky-600 group-hover:text-white transition-colors" />
+                     </div>
+                     <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                            <h3 className="text-lg font-bold text-slate-800 group-hover:text-sky-700 transition-colors">下单归因分析 (Purchase Window)</h3>
+                            <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-sky-500 transform group-hover:translate-x-1 transition-all" />
+                        </div>
+                        <p className="text-slate-500 text-sm leading-relaxed">基于下单日期回溯。精准分析特定销售批次或时间段的最终退货表现。</p>
+                     </div>
+                  </button>
+
+                  {/* Cycle Mode */}
                   <button 
                     onClick={() => setMode('cycle')}
                     className="group relative flex items-start p-5 bg-white border border-slate-200 rounded-xl hover:border-purple-500 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300 text-left"
@@ -350,7 +404,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ mode, setMode, onDataLoa
                             <h3 className="text-lg font-bold text-slate-800 group-hover:text-purple-700 transition-colors">退货周期归因 (A/B Test)</h3>
                             <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-purple-500 transform group-hover:translate-x-1 transition-all" />
                         </div>
-                        <p className="text-slate-500 text-sm leading-relaxed">基于下单日期归因。通过 Before/After 对比分析，验证 Listing 优化或产品改良的实际效果。</p>
+                        <p className="text-slate-500 text-sm leading-relaxed">通过 Before/After 对比分析，验证 Listing 优化或产品改良的实际效果。</p>
                      </div>
                   </button>
                 </div>
@@ -368,7 +422,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({ mode, setMode, onDataLoa
                   onClick={() => {
                     setMode(null);
                     setError(null);
-                    // Reset states potentially?
+                    setReturnFilesStatus(initialFilesStatus);
+                    setReturnTempData(initialAppData);
+                    // Reset other states
                   }}
                   className="mb-6 flex items-center text-slate-400 hover:text-indigo-600 transition-colors text-sm font-medium"
                 >
@@ -378,15 +434,23 @@ export const FileUpload: React.FC<FileUploadProps> = ({ mode, setMode, onDataLoa
 
                 <div className="mb-8">
                    <div className="flex items-center gap-3 mb-2">
-                      <div className={`p-2 rounded-lg ${mode === 'status' ? 'bg-indigo-100 text-indigo-600' : 'bg-purple-100 text-purple-600'}`}>
-                         {mode === 'status' ? <BarChart3 className="w-5 h-5" /> : <RefreshCcw className="w-5 h-5" />}
+                      <div className={`p-2 rounded-lg ${
+                          mode === 'return' ? 'bg-indigo-100 text-indigo-600' : 
+                          mode === 'purchase' ? 'bg-sky-100 text-sky-600' :
+                          'bg-purple-100 text-purple-600'
+                      }`}>
+                         {mode === 'return' && <BarChart3 className="w-5 h-5" />}
+                         {mode === 'purchase' && <ShoppingCart className="w-5 h-5" />}
+                         {mode === 'cycle' && <RefreshCcw className="w-5 h-5" />}
                       </div>
                       <h2 className="text-3xl font-bold text-slate-800">
-                        {mode === 'status' ? '导入现状数据' : '导入周期数据'}
+                        {mode === 'return' ? '导入退货窗口数据 (Return Window)' : 
+                         mode === 'purchase' ? '导入下单归因数据 (Purchase)' : 
+                         '导入周期数据 (Cycle)'}
                       </h2>
                    </div>
                    <p className="text-slate-500">
-                      {mode === 'status' 
+                      {(mode === 'return' || mode === 'purchase') 
                         ? '请上传 5 份必需的 JSON 数据源以开始分析。' 
                         : '请上传包含 before 和 after 后缀的对照文件（共10个）。'
                       }
@@ -418,9 +482,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({ mode, setMode, onDataLoa
                      </div>
                      <p className="text-base font-semibold text-slate-700">点击上传 或 拖拽所有文件到此处</p>
                      <p className="text-xs text-slate-400 mt-1">
-                        {mode === 'status' 
-                           ? '支持批量上传 (summary, structure, reasons, evidence, listing)' 
-                           : '请同时拖入调整前 (before) 和调整后 (after) 的所有文件'
+                        {mode === 'return' ? '支持 *_return_window 后缀文件' :
+                         mode === 'purchase' ? '支持 *_purchase_window 后缀文件' :
+                         '请同时拖入调整前 (before) 和调整后 (after) 的所有文件'
                         }
                      </p>
                   </div>
@@ -443,11 +507,11 @@ export const FileUpload: React.FC<FileUploadProps> = ({ mode, setMode, onDataLoa
                 </div>
 
                 {/* File Status Grid */}
-                {mode === 'status' ? (
-                  // Status Mode - Single Grid
+                {(mode === 'return' || mode === 'purchase') ? (
+                  // Return & Purchase Mode - Single Grid
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
                     {fileRequirements.map((item) => {
-                      const isReady = statusFilesStatus[item.key as keyof typeof statusFilesStatus];
+                      const isReady = returnFilesStatus[item.key as keyof typeof returnFilesStatus];
                       const Icon = item.icon;
                       return (
                         <div 
@@ -556,8 +620,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({ mode, setMode, onDataLoa
                 >
                   <Sparkles className={`w-5 h-5 ${completedCount === totalRequired ? 'animate-pulse' : ''}`} />
                   {completedCount === totalRequired 
-                     ? (mode === 'status' ? '生成现状分析报告' : '生成对比分析报告') 
-                     : (mode === 'status' ? '请先上传所有数据文件' : '请先上传所有 10 份文件')
+                     ? (mode === 'return' || mode === 'purchase' ? '生成分析报告' : '生成对比分析报告') 
+                     : (mode === 'return' || mode === 'purchase' ? '请先上传所有数据文件' : '请先上传所有 10 份文件')
                   }
                 </button>
              </div>

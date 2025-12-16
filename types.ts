@@ -1,7 +1,7 @@
 
 // Type definitions matching the user's JSON structure
 
-export type ReportMode = 'status' | 'cycle';
+export type ReportMode = 'return' | 'cycle' | 'purchase';
 
 export interface AsinNode {
   country: string;
